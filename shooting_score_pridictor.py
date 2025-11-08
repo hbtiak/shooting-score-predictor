@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor
 import warnings
@@ -43,6 +45,13 @@ st.markdown("""
         border: 1px solid #ddd;
         text-align: center;
     }
+    .analysis-box {
+        background-color: #f8f9fa;
+        padding: 20px;
+        border-radius: 10px;
+        border: 1px solid #dee2e6;
+        margin: 10px 0;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -80,6 +89,124 @@ class ShootingScorePredictor:
         features.append(session_totals[2] - session_totals[1])
         
         return np.array(features).reshape(1, -1)
+    
+    def analyze_series_trends(self, sessions_data):
+        """Analyze performance trends across series"""
+        if len(sessions_data) != 3:
+            return None
+        
+        analysis = {}
+        
+        # Convert to numpy array for easier analysis
+        sessions_array = np.array(sessions_data)
+        
+        # Calculate average performance per series across all sessions
+        series_avgs = sessions_array.mean(axis=0)
+        analysis['series_averages'] = series_avgs
+        
+        # Calculate series trends (improvement/decline within sessions)
+        series_trends = []
+        for session in sessions_array:
+            x = np.array(range(1, 7))
+            y = session
+            trend = LinearRegression().fit(x.reshape(-1, 1), y).coef_[0]
+            series_trends.append(trend)
+        analysis['session_series_trends'] = series_trends
+        
+        # Calculate consistency per series
+        series_consistency = sessions_array.std(axis=0)
+        analysis['series_consistency'] = series_consistency
+        
+        # Calculate performance change from first to last series in each session
+        series_delta = []
+        for session in sessions_array:
+            delta = session[-1] - session[0]  # Last series - first series
+            series_delta.append(delta)
+        analysis['series_delta'] = series_delta
+        
+        # Overall series pattern (which series are strongest/weakest)
+        analysis['strongest_series'] = np.argmax(series_avgs) + 1
+        analysis['weakest_series'] = np.argmin(series_avgs) + 1
+        analysis['most_consistent_series'] = np.argmin(series_consistency) + 1
+        analysis['least_consistent_series'] = np.argmax(series_consistency) + 1
+        
+        # Endurance analysis (performance in later series)
+        early_series_avg = np.mean(sessions_array[:, :3])  # Series 1-3
+        late_series_avg = np.mean(sessions_array[:, 3:])   # Series 4-6
+        analysis['endurance_factor'] = late_series_avg - early_series_avg
+        
+        return analysis
+    
+    def create_series_trend_plot(self, sessions_data, analysis):
+        """Create visualization of series performance trends"""
+        fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 12))
+        
+        # Plot 1: Series Performance Across Sessions
+        sessions_array = np.array(sessions_data)
+        for i, session in enumerate(sessions_array):
+            ax1.plot(range(1, 7), session, marker='o', linewidth=2, 
+                    label=f'Session {i+1}', alpha=0.8)
+        
+        ax1.set_xlabel('Series Number')
+        ax1.set_ylabel('Score')
+        ax1.set_title('Series Performance Across All Sessions')
+        ax1.legend()
+        ax1.grid(True, alpha=0.3)
+        ax1.set_xticks(range(1, 7))
+        
+        # Plot 2: Average Performance per Series
+        series_avgs = analysis['series_averages']
+        series_std = analysis['series_consistency']
+        bars = ax2.bar(range(1, 7), series_avgs, yerr=series_std, 
+                      capsize=5, alpha=0.7, color='skyblue')
+        ax2.set_xlabel('Series Number')
+        ax2.set_ylabel('Average Score')
+        ax2.set_title('Average Performance per Series (± consistency)')
+        ax2.set_xticks(range(1, 7))
+        ax2.grid(True, alpha=0.3)
+        
+        # Add value labels on bars
+        for bar, avg in zip(bars, series_avgs):
+            height = bar.get_height()
+            ax2.text(bar.get_x() + bar.get_width()/2., height + 0.1,
+                    f'{avg:.1f}', ha='center', va='bottom')
+        
+        # Plot 3: Performance Trend Within Sessions
+        trends = analysis['session_series_trends']
+        colors = ['green' if trend > 0 else 'red' for trend in trends]
+        bars = ax3.bar(range(1, 4), trends, color=colors, alpha=0.7)
+        ax3.set_xlabel('Session')
+        ax3.set_ylabel('Trend (points per series)')
+        ax3.set_title('Performance Trend Within Each Session\n(Green=Improving, Red=Declining)')
+        ax3.set_xticks(range(1, 4))
+        ax3.axhline(y=0, color='black', linestyle='-', alpha=0.3)
+        ax3.grid(True, alpha=0.3)
+        
+        # Add value labels on bars
+        for bar, trend in zip(bars, trends):
+            height = bar.get_height()
+            ax3.text(bar.get_x() + bar.get_width()/2., height + (0.01 if height > 0 else -0.15),
+                    f'{trend:+.2f}', ha='center', va='bottom' if height > 0 else 'top')
+        
+        # Plot 4: Endurance Analysis (First vs Last Series)
+        first_series_avg = np.mean(sessions_array[:, 0])
+        last_series_avg = np.mean(sessions_array[:, -1])
+        endurance_data = [first_series_avg, last_series_avg]
+        colors = ['lightcoral', 'lightgreen']
+        bars = ax4.bar(['First Series', 'Last Series'], endurance_data, 
+                      color=colors, alpha=0.7)
+        ax4.set_ylabel('Average Score')
+        ax4.set_title('Endurance Analysis: First vs Last Series')
+        ax4.grid(True, alpha=0.3)
+        
+        # Add value labels on bars
+        for bar, value in zip(bars, endurance_data):
+            height = bar.get_height()
+            ax4.text(bar.get_x() + bar.get_width()/2., height + 0.1,
+                    f'{value:.1f}', ha='center', va='bottom')
+        
+        plt.tight_layout()
+        return fig
     
     def predict_next_session(self, sessions_data, model_name='Linear Regression'):
         """Predict next session total based on last 3 sessions with realistic fluctuations"""
@@ -319,24 +446,105 @@ def main():
         else:
             st.warning("**Variable Performer**: Significant session-to-session fluctuations")
         
-        # Series-wise analysis
-        st.markdown("#### 📊 Series-wise Performance")
-        series_avgs = np.array(sessions_data).mean(axis=0)
+        # Series Trend Analysis
+        st.markdown("### 📊 Series Trend Analysis")
         
-        cols = st.columns(6)
-        for i, col in enumerate(cols):
-            with col:
-                series_scores = [session[i] for session in sessions_data]
-                avg_series = np.mean(series_scores)
-                trend_series = series_scores[2] - series_scores[0]
-                consistency_series = np.std(series_scores)
+        # Perform series analysis
+        series_analysis = predictor.analyze_series_trends(sessions_data)
+        
+        if series_analysis:
+            # Display key insights
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                st.markdown('<div class="metric-box">', unsafe_allow_html=True)
+                endurance = series_analysis['endurance_factor']
+                st.metric("Endurance Factor", f"{endurance:+.2f}")
+                st.caption("Late vs Early Series")
+                st.markdown('</div>', unsafe_allow_html=True)
+            
+            with col2:
+                st.markdown('<div class="metric-box">', unsafe_allow_html=True)
+                avg_trend = np.mean(series_analysis['session_series_trends'])
+                st.metric("Avg Series Trend", f"{avg_trend:+.3f}")
+                st.caption("Points per series")
+                st.markdown('</div>', unsafe_allow_html=True)
+            
+            with col3:
+                st.markdown('<div class="metric-box">', unsafe_allow_html=True)
+                strongest = series_analysis['strongest_series']
+                st.metric("Strongest Series", f"{strongest}")
+                st.markdown('</div>', unsafe_allow_html=True)
+            
+            with col4:
+                st.markdown('<div class="metric-box">', unsafe_allow_html=True)
+                weakest = series_analysis['weakest_series']
+                st.metric("Weakest Series", f"{weakest}")
+                st.markdown('</div>', unsafe_allow_html=True)
+            
+            # Detailed Series Insights
+            st.markdown("#### 🔍 Series Performance Insights")
+            
+            insights_col1, insights_col2 = st.columns(2)
+            
+            with insights_col1:
+                st.markdown('<div class="analysis-box">', unsafe_allow_html=True)
+                st.write("**📈 Performance Trends Within Sessions:**")
+                trends = series_analysis['session_series_trends']
+                for i, trend in enumerate(trends):
+                    trend_desc = "Improving" if trend > 0 else "Declining" if trend < 0 else "Stable"
+                    st.write(f"- Session {i+1}: {trend_desc} ({trend:+.3f} points/series)")
                 
-                st.metric(
-                    f"Series {i+1}", 
-                    f"{avg_series:.1f}",
-                    delta=f"{trend_series:+.1f}"
-                )
-                st.caption(f"σ: {consistency_series:.2f}")
+                st.write("**🎯 Series Strengths:**")
+                st.write(f"- Strongest: Series {series_analysis['strongest_series']} "
+                        f"({series_analysis['series_averages'][series_analysis['strongest_series']-1]:.1f} avg)")
+                st.write(f"- Weakest: Series {series_analysis['weakest_series']} "
+                        f"({series_analysis['series_averages'][series_analysis['weakest_series']-1]:.1f} avg)")
+                st.markdown('</div>', unsafe_allow_html=True)
+            
+            with insights_col2:
+                st.markdown('<div class="analysis-box">', unsafe_allow_html=True)
+                st.write("**⚡ Consistency Analysis:**")
+                st.write(f"- Most Consistent: Series {series_analysis['most_consistent_series']}")
+                st.write(f"- Least Consistent: Series {series_analysis['least_consistent_series']}")
+                
+                st.write("**💪 Endurance Analysis:**")
+                endurance = series_analysis['endurance_factor']
+                if endurance > 0.5:
+                    st.write("- ✅ Strong endurance: Performance improves in later series")
+                elif endurance > -0.5:
+                    st.write("- ⚖️ Stable endurance: Consistent throughout")
+                else:
+                    st.write("- 📉 Endurance challenge: Performance drops in later series")
+                
+                st.write(f"- Early series (1-3) avg: {np.mean(np.array(sessions_data)[:, :3]):.1f}")
+                st.write(f"- Late series (4-6) avg: {np.mean(np.array(sessions_data)[:, 3:]):.1f}")
+                st.markdown('</div>', unsafe_allow_html=True)
+            
+            # Create and display trend visualization
+            st.markdown("#### 📊 Series Performance Visualization")
+            fig = predictor.create_series_trend_plot(sessions_data, series_analysis)
+            st.pyplot(fig)
+            
+            # Series-wise detailed table
+            st.markdown("#### 📋 Series-by-Series Analysis")
+            series_data = []
+            for i in range(6):
+                series_scores = [session[i] for session in sessions_data]
+                series_data.append({
+                    'Series': i+1,
+                    'Average': np.mean(series_scores),
+                    'Best': max(series_scores),
+                    'Worst': min(series_scores),
+                    'Consistency (σ)': np.std(series_scores),
+                    'Trend (S3-S1)': series_scores[2] - series_scores[0],
+                    'Session 1': series_scores[0],
+                    'Session 2': series_scores[1],
+                    'Session 3': series_scores[2]
+                })
+            
+            df_series = pd.DataFrame(series_data)
+            st.dataframe(df_series, use_container_width=True)
     
     # Prediction Section
     st.markdown("### 🔮 Next Session Prediction")
@@ -397,42 +605,48 @@ def main():
             # Training Recommendations
             st.markdown("### 💡 Training Recommendations")
             
-            rec_col1, rec_col2 = st.columns(2)
-            
-            with rec_col1:
-                st.write("**Session Strategy:**")
-                session_consistency = np.std(session_totals)
-                trend = session_totals[2] - session_totals[0]
+            if series_analysis:
+                rec_col1, rec_col2 = st.columns(2)
                 
-                if session_consistency > 4:
-                    st.write("• 🎯 Focus on session-to-session consistency")
-                    st.write("• 📊 Identify causes of performance fluctuations")
-                elif session_consistency > 2:
-                    st.write("• ⚖️ Work on maintaining stable performance")
-                else:
-                    st.write("• ✅ Excellent consistency - maintain focus")
+                with rec_col1:
+                    st.write("**Session Strategy:**")
+                    session_consistency = np.std(session_totals)
+                    trend = session_totals[2] - session_totals[0]
+                    
+                    if session_consistency > 4:
+                        st.write("• 🎯 Focus on session-to-session consistency")
+                        st.write("• 📊 Identify causes of performance fluctuations")
+                    elif session_consistency > 2:
+                        st.write("• ⚖️ Work on maintaining stable performance")
+                    else:
+                        st.write("• ✅ Excellent consistency - maintain focus")
+                    
+                    if trend > 3:
+                        st.write("• 🔥 Capitalize on positive momentum")
+                    elif trend < -2:
+                        st.write("• 📉 Address performance decline")
+                    
+                    st.write("• 🧠 Mental preparation between sessions")
                 
-                if trend > 3:
-                    st.write("• 🔥 Capitalize on positive momentum")
-                elif trend < -2:
-                    st.write("• 📉 Address performance decline")
-                
-                st.write("• 🧠 Mental preparation between sessions")
-            
-            with rec_col2:
-                st.write("**Series-specific Focus:**")
-                # Identify weakest and strongest series
-                series_avgs = np.array(sessions_data).mean(axis=0)
-                series_consistencies = [np.std([session[i] for session in sessions_data]) for i in range(6)]
-                
-                weakest_series = np.argmin(series_avgs) + 1
-                strongest_series = np.argmax(series_avgs) + 1
-                most_variable = np.argmax(series_consistencies) + 1
-                
-                st.write(f"• 💪 Strengthen Series {weakest_series} (lowest avg)")
-                st.write(f"• ✅ Maintain Series {strongest_series} (highest avg)")
-                st.write(f"• 🎯 Stabilize Series {most_variable} (most variable)")
-                st.write("• ⚡ Build endurance for consistent performance")
+                with rec_col2:
+                    st.write("**Series-specific Focus:**")
+                    # Use series analysis for recommendations
+                    weakest = series_analysis['weakest_series']
+                    strongest = series_analysis['strongest_series']
+                    least_consistent = series_analysis['least_consistent_series']
+                    endurance = series_analysis['endurance_factor']
+                    
+                    st.write(f"• 💪 Strengthen Series {weakest} (lowest average)")
+                    st.write(f"• ✅ Maintain Series {strongest} (highest average)")
+                    st.write(f"• 🎯 Stabilize Series {least_consistent} (most variable)")
+                    
+                    if endurance < -0.5:
+                        st.write("• ⚡ Build physical and mental endurance")
+                        st.write("• 🏋️ Focus on maintaining focus in later series")
+                    elif endurance > 0.5:
+                        st.write("• 🔥 Leverage strong finishing ability")
+                    
+                    st.write("• 📈 Practice series transitions smoothly")
         
         else:
             st.error("Please complete all 3 sessions with 6 series each")
@@ -440,22 +654,28 @@ def main():
     # Example section
     with st.expander("💡 How to use this predictor"):
         st.write("""
-        **Realistic Performance Patterns:**
-        - **Consistent Shooters**: Small fluctuations (±1-2 points)
-        - **Improving Shooters**: Gradual improvements (1-3 points per session)
-        - **Declining Shooters**: Performance drops due to various factors
-        - **Variable Shooters**: Larger fluctuations based on consistency
+        **Advanced Series Analysis Features:**
         
-        **Key Metrics:**
-        - **Session Consistency**: How stable are your session totals
-        - **Series Consistency**: How consistent are your individual series
-        - **Trend Direction**: Are you improving, declining, or stable
+        **📈 Series Trend Analysis:**
+        - Track performance changes within each session
+        - Identify improving or declining patterns across series
+        - Analyze endurance (early vs late series performance)
         
-        **Prediction Factors:**
-        - Based on your historical consistency
-        - Considers both improvement and decline scenarios
-        - Accounts for realistic performance fluctuations
-        - Adapts to your shooting pattern
+        **🎯 Performance Insights:**
+        - Strongest and weakest series identification
+        - Consistency metrics for each series
+        - Endurance factor calculation
+        
+        **📊 Visualizations:**
+        - Series performance across all sessions
+        - Average performance per series with consistency
+        - Within-session trend analysis
+        - Endurance comparison charts
+        
+        **Key Metrics Explained:**
+        - **Endurance Factor**: Difference between late and early series performance
+        - **Series Trend**: Points gained/lost per series within a session
+        - **Consistency (σ)**: Standard deviation - lower is more consistent
         """)
 
 if __name__ == "__main__":
