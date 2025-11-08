@@ -43,11 +43,6 @@ st.markdown("""
         border: 1px solid #ddd;
         text-align: center;
     }
-    .series-row {
-        display: flex;
-        justify-content: space-between;
-        margin: 5px 0;
-    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -72,7 +67,10 @@ class ShootingScorePredictor:
         # Trend (slope of last 3 sessions)
         x = np.array([1, 2, 3]).reshape(-1, 1)
         y = np.array(session_totals)
-        trend = LinearRegression().fit(x, y).coef_[0]
+        if len(y) == 3:
+            trend = LinearRegression().fit(x, y).coef_[0]
+        else:
+            trend = 0
         features.append(trend)
         # Standard deviation (consistency across sessions)
         features.append(np.std(session_totals))
@@ -84,45 +82,53 @@ class ShootingScorePredictor:
     def predict_next_session(self, sessions_data, model_name='Linear Regression'):
         """Predict next session total based on last 3 sessions"""
         if len(sessions_data) != 3:
-            return None, "Please enter exactly 3 sessions"
+            return None, "Please enter exactly 3 sessions", []
         
         # Calculate session totals
         session_totals = [self.calculate_session_total(session) for session in sessions_data]
         
-        # Train model
-        model = self.models[model_name]
-        
-        # Generate training data based on shooting patterns
-        X_train = []
-        y_train = []
-        
-        # Base patterns from actual shooting data
-        base_totals = [610, 615, 620, 625, 630]
-        for base in base_totals:
-            # Consistent improvement patterns
-            X_train.append(self.prepare_features([base-2, base, base+1])[0])
-            y_train.append(base + 2)
+        # Use simple prediction if scikit-learn fails
+        try:
+            model = self.models[model_name]
             
-            X_train.append(self.prepare_features([base, base+1, base+2])[0])
-            y_train.append(base + 3)
+            # Generate training data based on shooting patterns
+            X_train = []
+            y_train = []
             
-            # Stable performance patterns
-            X_train.append(self.prepare_features([base, base, base])[0])
-            y_train.append(base)
+            # Base patterns from actual shooting data
+            base_totals = [610, 615, 620, 625, 630, 635, 640, 645, 650, 655, 660]
+            for base in base_totals:
+                # Consistent improvement patterns
+                X_train.append(self.prepare_features([base-2, base, base+1])[0])
+                y_train.append(base + 2)
+                
+                X_train.append(self.prepare_features([base, base+1, base+2])[0])
+                y_train.append(base + 3)
+                
+                # Stable performance patterns
+                X_train.append(self.prepare_features([base, base, base])[0])
+                y_train.append(base)
+                
+                # Fluctuating patterns
+                X_train.append(self.prepare_features([base-1, base+2, base])[0])
+                y_train.append(base + 1)
             
-            # Fluctuating patterns
-            X_train.append(self.prepare_features([base-1, base+2, base])[0])
-            y_train.append(base + 1)
-        
-        X_train = np.array(X_train)
-        y_train = np.array(y_train)
-        
-        # Train the model
-        model.fit(X_train, y_train)
-        
-        # Make prediction
-        features = self.prepare_features(session_totals)
-        prediction = model.predict(features)[0]
+            X_train = np.array(X_train)
+            y_train = np.array(y_train)
+            
+            # Train the model
+            model.fit(X_train, y_train)
+            
+            # Make prediction
+            features = self.prepare_features(session_totals)
+            prediction = model.predict(features)[0]
+            
+        except Exception as e:
+            # Fallback to simple average with trend
+            st.warning(f"Using fallback prediction method: {str(e)}")
+            avg_score = np.mean(session_totals)
+            trend = session_totals[2] - session_totals[0]
+            prediction = avg_score + (trend * 0.5)
         
         # Calculate confidence based on consistency
         consistency = np.std(session_totals)
@@ -167,7 +173,7 @@ def main():
                 score = col.number_input(
                     f"S{i+1}", 
                     min_value=0.0, 
-                    max_value=105.0, 
+                    max_value=109.9, 
                     value=[102.2, 104.1, 105.3, 104.1, 103.3, 104.1][i],
                     step=0.1,
                     key=f"s1_{i}"
@@ -192,7 +198,7 @@ def main():
                 score = col.number_input(
                     f"S{i+1}", 
                     min_value=0.0, 
-                    max_value=105.0, 
+                    max_value=109.9, 
                     value=[103.5, 104.2, 104.8, 103.6, 102.7, 103.2][i],
                     step=0.1,
                     key=f"s2_{i}"
@@ -217,7 +223,7 @@ def main():
                 score = col.number_input(
                     f"S{i+1}", 
                     min_value=0.0, 
-                    max_value=105.0, 
+                    max_value=109.9, 
                     value=[104.4, 103.5, 104.7, 104.7, 105.1, 104.0][i],
                     step=0.1,
                     key=f"s3_{i}"
@@ -301,13 +307,13 @@ def main():
                 )
                 
                 # Progress visualization
-                max_possible = 630  # 6 series × 105 max each
+                max_possible = 659.4  # 6 series × 109.9 max each
                 progress_percent = min(100, (prediction / max_possible) * 100)
                 st.progress(int(progress_percent))
                 
                 # Expected range
                 lower_bound = max(0, prediction - confidence_range)
-                upper_bound = min(630, prediction + confidence_range)
+                upper_bound = min(max_possible, prediction + confidence_range)
                 st.write(f"**Expected Range:** {lower_bound:.1f} - {upper_bound:.1f}")
                 st.write(f"**Model:** {model_choice}")
                 
@@ -339,6 +345,9 @@ def main():
             
             with rec_col1:
                 st.write("**Session Strategy:**")
+                consistency = np.std(session_totals)
+                trend = session_totals[2] - session_totals[0]
+                
                 if consistency > 5:
                     st.write("• 🎯 Focus on session consistency")
                     st.write("• 📊 Analyze performance fluctuations")
@@ -373,10 +382,11 @@ def main():
         **Input Format:**
         - Enter 3 complete sessions (most recent last)
         - Each session has 6 series scores
-        - Series scores typically range from 95-105
+        - Series scores typically range from 95-109.9
         
         **Calculation:**
         - Session Total = Sum of all 6 series scores
+        - Maximum possible session total: 659.4 (6 × 109.9)
         - Prediction based on session totals and trends
         
         **Example Session:**
