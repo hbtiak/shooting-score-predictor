@@ -332,7 +332,7 @@ def main():
     # Session 1
     with st.container():
         st.markdown('<div class="session-box">', unsafe_allow_html=True)
-        st.subheader("Session 1 (Oldest)")
+        st.subheader("Session 1 (Oldest): " f"{session1_total:.1f}")
         
         cols = st.columns(6)
         session1_series = []
