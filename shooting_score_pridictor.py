@@ -52,6 +52,19 @@ st.markdown("""
         border: 1px solid #dee2e6;
         margin: 10px 0;
     }
+    .session-details {
+        background-color: #e8f4fd;
+        padding: 15px;
+        border-radius: 8px;
+        border-left: 4px solid #1f77b4;
+        margin: 10px 0;
+    }
+    .session-header {
+        font-size: 1.2rem;
+        font-weight: bold;
+        color: #1f77b4;
+        margin-bottom: 5px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -314,9 +327,9 @@ def main():
     
     # Sidebar for configuration
     st.sidebar.header("Configuration")
-    athlete_name = st.sidebar.text_input("Athlete Name", "Tom Cruise")
+    athlete_name = st.sidebar.text_input("Athlete Name", "Suryansh Narayan")
     category = st.sidebar.selectbox("Category", [
-        "Sub Youth Men","Sub Youth Women", "Youth Men", "Youth Women" ,"Junior Men" ,"Junior Women","Senior Men","Senior Women"
+        "Junior Men", "Youth Men", "Youth Women", "Sub Youth Men", "Sub Youth Women"
     ])
     
     model_choice = st.sidebar.selectbox(
@@ -328,11 +341,12 @@ def main():
     st.markdown("### 📊 Enter Last 3 Sessions (6 Series Each)")
     
     sessions_data = []
+    session_totals = []
     
     # Session 1
     with st.container():
         st.markdown('<div class="session-box">', unsafe_allow_html=True)
-        st.subheader("Session 1 (Oldest): " f"{session1_total:.1f}")
+        st.subheader("Session 1 (Oldest)")
         
         cols = st.columns(6)
         session1_series = []
@@ -350,7 +364,7 @@ def main():
                 st.caption(f"Series {i+1}")
         
         session1_total = sum(session1_series)
-        st.metric("Session 1 Total", f"{session1_total:.1f}")
+        session_totals.append(session1_total)
         sessions_data.append(session1_series)
         st.markdown('</div>', unsafe_allow_html=True)
     
@@ -375,7 +389,7 @@ def main():
                 st.caption(f"Series {i+1}")
         
         session2_total = sum(session2_series)
-        st.metric("Session 2 Total", f"{session2_total:.1f}")
+        session_totals.append(session2_total)
         sessions_data.append(session2_series)
         st.markdown('</div>', unsafe_allow_html=True)
     
@@ -400,15 +414,66 @@ def main():
                 st.caption(f"Series {i+1}")
         
         session3_total = sum(session3_series)
-        st.metric("Session 3 Total", f"{session3_total:.1f}")
+        session_totals.append(session3_total)
         sessions_data.append(session3_series)
         st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Session Details Summary
+    if len(sessions_data) == 3:
+        st.markdown("### 📋 Session Summary")
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.markdown('<div class="session-details">', unsafe_allow_html=True)
+            st.markdown('<div class="session-header">Session 1 (Oldest)</div>', unsafe_allow_html=True)
+            st.markdown(f"**Total Score: {session_totals[0]:.1f}**")
+            st.markdown(f"Series: {', '.join([f'{s:.1f}' for s in sessions_data[0]])}")
+            st.markdown('</div>', unsafe_allow_html=True)
+        
+        with col2:
+            st.markdown('<div class="session-details">', unsafe_allow_html=True)
+            st.markdown('<div class="session-header">Session 2</div>', unsafe_allow_html=True)
+            st.markdown(f"**Total Score: {session_totals[1]:.1f}**")
+            st.markdown(f"Series: {', '.join([f'{s:.1f}' for s in sessions_data[1]])}")
+            st.markdown('</div>', unsafe_allow_html=True)
+        
+        with col3:
+            st.markdown('<div class="session-details">', unsafe_allow_html=True)
+            st.markdown('<div class="session-header">Session 3 (Most Recent)</div>', unsafe_allow_html=True)
+            st.markdown(f"**Total Score: {session_totals[2]:.1f}**")
+            st.markdown(f"Series: {', '.join([f'{s:.1f}' for s in sessions_data[2]])}")
+            st.markdown('</div>', unsafe_allow_html=True)
+        
+        # Session Progress
+        st.markdown("#### 📈 Session Progress")
+        progress_col1, progress_col2, progress_col3 = st.columns(3)
+        
+        with progress_col1:
+            if session_totals[1] > session_totals[0]:
+                delta1 = f"+{session_totals[1] - session_totals[0]:.1f}"
+            else:
+                delta1 = f"{session_totals[1] - session_totals[0]:.1f}"
+            st.metric("Session 1 → Session 2", f"{session_totals[1]:.1f}", delta=delta1)
+        
+        with progress_col2:
+            if session_totals[2] > session_totals[1]:
+                delta2 = f"+{session_totals[2] - session_totals[1]:.1f}"
+            else:
+                delta2 = f"{session_totals[2] - session_totals[1]:.1f}"
+            st.metric("Session 2 → Session 3", f"{session_totals[2]:.1f}", delta=delta2)
+        
+        with progress_col3:
+            if session_totals[2] > session_totals[0]:
+                delta3 = f"+{session_totals[2] - session_totals[0]:.1f}"
+            else:
+                delta3 = f"{session_totals[2] - session_totals[0]:.1f}"
+            st.metric("Overall Trend", f"{session_totals[2]:.1f}", delta=delta3)
     
     # Performance Analysis
     st.markdown("### 📈 Performance Analysis")
     
     if len(sessions_data) == 3:
-        session_totals = [predictor.calculate_session_total(session) for session in sessions_data]
         all_series = [score for session in sessions_data for score in session]
         
         col1, col2, col3, col4 = st.columns(4)
@@ -482,69 +547,10 @@ def main():
                 st.metric("Weakest Series", f"{weakest}")
                 st.markdown('</div>', unsafe_allow_html=True)
             
-            # Detailed Series Insights
-            st.markdown("#### 🔍 Series Performance Insights")
-            
-            insights_col1, insights_col2 = st.columns(2)
-            
-            with insights_col1:
-                st.markdown('<div class="analysis-box">', unsafe_allow_html=True)
-                st.write("**📈 Performance Trends Within Sessions:**")
-                trends = series_analysis['session_series_trends']
-                for i, trend in enumerate(trends):
-                    trend_desc = "Improving" if trend > 0 else "Declining" if trend < 0 else "Stable"
-                    st.write(f"- Session {i+1}: {trend_desc} ({trend:+.3f} points/series)")
-                
-                st.write("**🎯 Series Strengths:**")
-                st.write(f"- Strongest: Series {series_analysis['strongest_series']} "
-                        f"({series_analysis['series_averages'][series_analysis['strongest_series']-1]:.1f} avg)")
-                st.write(f"- Weakest: Series {series_analysis['weakest_series']} "
-                        f"({series_analysis['series_averages'][series_analysis['weakest_series']-1]:.1f} avg)")
-                st.markdown('</div>', unsafe_allow_html=True)
-            
-            with insights_col2:
-                st.markdown('<div class="analysis-box">', unsafe_allow_html=True)
-                st.write("**⚡ Consistency Analysis:**")
-                st.write(f"- Most Consistent: Series {series_analysis['most_consistent_series']}")
-                st.write(f"- Least Consistent: Series {series_analysis['least_consistent_series']}")
-                
-                st.write("**💪 Endurance Analysis:**")
-                endurance = series_analysis['endurance_factor']
-                if endurance > 0.5:
-                    st.write("- ✅ Strong endurance: Performance improves in later series")
-                elif endurance > -0.5:
-                    st.write("- ⚖️ Stable endurance: Consistent throughout")
-                else:
-                    st.write("- 📉 Endurance challenge: Performance drops in later series")
-                
-                st.write(f"- Early series (1-3) avg: {np.mean(np.array(sessions_data)[:, :3]):.1f}")
-                st.write(f"- Late series (4-6) avg: {np.mean(np.array(sessions_data)[:, 3:]):.1f}")
-                st.markdown('</div>', unsafe_allow_html=True)
-            
             # Create and display trend visualization
             st.markdown("#### 📊 Series Performance Visualization")
             fig = predictor.create_series_trend_plot(sessions_data, series_analysis)
             st.pyplot(fig)
-            
-            # Series-wise detailed table
-            st.markdown("#### 📋 Series-by-Series Analysis")
-            series_data = []
-            for i in range(6):
-                series_scores = [session[i] for session in sessions_data]
-                series_data.append({
-                    'Series': i+1,
-                    'Average': np.mean(series_scores),
-                    'Best': max(series_scores),
-                    'Worst': min(series_scores),
-                    'Consistency (σ)': np.std(series_scores),
-                    'Trend (S3-S1)': series_scores[2] - series_scores[0],
-                    'Session 1': series_scores[0],
-                    'Session 2': series_scores[1],
-                    'Session 3': series_scores[2]
-                })
-            
-            df_series = pd.DataFrame(series_data)
-            st.dataframe(df_series, use_container_width=True)
     
     # Prediction Section
     st.markdown("### 🔮 Next Session Prediction")
@@ -654,28 +660,23 @@ def main():
     # Example section
     with st.expander("💡 How to use this predictor"):
         st.write("""
-        **Advanced Series Analysis Features:**
+        **Session Details Display:**
+        - Clear session-by-session breakdown with total scores
+        - Individual series scores for each session
+        - Progress tracking between sessions
+        - Overall trend analysis
         
-        **📈 Series Trend Analysis:**
-        - Track performance changes within each session
-        - Identify improving or declining patterns across series
-        - Analyze endurance (early vs late series performance)
+        **Example Session Display:**
+        ```
+        Session 1 - Total Score: 601.2
+        Series: 102.2, 104.1, 105.3, 104.1, 103.3, 104.1
         
-        **🎯 Performance Insights:**
-        - Strongest and weakest series identification
-        - Consistency metrics for each series
-        - Endurance factor calculation
+        Session 2 - Total Score: 602.1  
+        Series: 103.5, 104.2, 104.8, 103.6, 102.7, 103.2
         
-        **📊 Visualizations:**
-        - Series performance across all sessions
-        - Average performance per series with consistency
-        - Within-session trend analysis
-        - Endurance comparison charts
-        
-        **Key Metrics Explained:**
-        - **Endurance Factor**: Difference between late and early series performance
-        - **Series Trend**: Points gained/lost per series within a session
-        - **Consistency (σ)**: Standard deviation - lower is more consistent
+        Session 3 - Total Score: 599.2
+        Series: 104.4, 103.5, 104.7, 104.7, 105.1, 104.0
+        ```
         """)
 
 if __name__ == "__main__":
