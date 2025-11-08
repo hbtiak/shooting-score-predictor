@@ -54,16 +54,17 @@ st.markdown("""
     }
     .session-details {
         background-color: #e8f4fd;
-        padding: 15px;
+        padding: 12px;
         border-radius: 8px;
         border-left: 4px solid #1f77b4;
-        margin: 10px 0;
+        margin: 8px 0;
+        font-size: 0.9rem;
     }
     .session-header {
-        font-size: 1.2rem;
+        font-size: 1.1rem;
         font-weight: bold;
         color: #1f77b4;
-        margin-bottom: 5px;
+        margin-bottom: 3px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -418,31 +419,16 @@ def main():
         sessions_data.append(session3_series)
         st.markdown('</div>', unsafe_allow_html=True)
     
-    # Session Details Summary
+    # Session Details Summary - Updated Compact Format
     if len(sessions_data) == 3:
         st.markdown("### 📋 Session Summary")
         
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
+        # Display sessions in vertical compact format
+        session_names = ["Session 1 (Oldest)", "Session 2", "Session 3 (Most Recent)"]
+        for i, (session, total) in enumerate(zip(sessions_data, session_totals)):
             st.markdown('<div class="session-details">', unsafe_allow_html=True)
-            st.markdown('<div class="session-header">Session 1 (Oldest)</div>', unsafe_allow_html=True)
-            st.markdown(f"**Total Score: {session_totals[0]:.1f}**")
-            st.markdown(f"Series: {', '.join([f'{s:.1f}' for s in sessions_data[0]])}")
-            st.markdown('</div>', unsafe_allow_html=True)
-        
-        with col2:
-            st.markdown('<div class="session-details">', unsafe_allow_html=True)
-            st.markdown('<div class="session-header">Session 2</div>', unsafe_allow_html=True)
-            st.markdown(f"**Total Score: {session_totals[1]:.1f}**")
-            st.markdown(f"Series: {', '.join([f'{s:.1f}' for s in sessions_data[1]])}")
-            st.markdown('</div>', unsafe_allow_html=True)
-        
-        with col3:
-            st.markdown('<div class="session-details">', unsafe_allow_html=True)
-            st.markdown('<div class="session-header">Session 3 (Most Recent)</div>', unsafe_allow_html=True)
-            st.markdown(f"**Total Score: {session_totals[2]:.1f}**")
-            st.markdown(f"Series: {', '.join([f'{s:.1f}' for s in sessions_data[2]])}")
+            st.markdown(f'<div class="session-header">{session_names[i]} - Total Score: {total:.1f}</div>', unsafe_allow_html=True)
+            st.markdown(f"**Series:** {', '.join([f'{s:.1f}' for s in session])}")
             st.markdown('</div>', unsafe_allow_html=True)
         
         # Session Progress
@@ -668,13 +654,13 @@ def main():
         
         **Example Session Display:**
         ```
-        Session 1 - Total Score: 601.2
+        Session 1 (Oldest) - Total Score: 623.1
         Series: 102.2, 104.1, 105.3, 104.1, 103.3, 104.1
         
         Session 2 - Total Score: 602.1  
         Series: 103.5, 104.2, 104.8, 103.6, 102.7, 103.2
         
-        Session 3 - Total Score: 599.2
+        Session 3 (Most Recent) - Total Score: 599.2
         Series: 104.4, 103.5, 104.7, 104.7, 105.1, 104.0
         ```
         """)
