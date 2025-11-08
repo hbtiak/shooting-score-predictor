@@ -314,9 +314,9 @@ def main():
     
     # Sidebar for configuration
     st.sidebar.header("Configuration")
-    athlete_name = st.sidebar.text_input("Athlete Name", "Suryansh Narayan")
+    athlete_name = st.sidebar.text_input("Athlete Name", "Tom Cruise")
     category = st.sidebar.selectbox("Category", [
-        "Junior Men", "Youth Men", "Youth Women", "Sub Youth Men", "Sub Youth Women"
+        "Sub Youth Men","Sub Youth Women", "Youth Men", "Youth Women" ,"Junior Men" ,"Junior Women","Senior Men","Senior Women"
     ])
     
     model_choice = st.sidebar.selectbox(
